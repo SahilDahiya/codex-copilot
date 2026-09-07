@@ -611,6 +611,11 @@ client_request_definitions! {
         serialization: thread_id(params.thread_id),
         response: v2::ThreadGoalSetResponse,
     },
+    ThreadCopilotUsageRead => "thread/copilotUsage/read" {
+        params: v2::ThreadCopilotUsageReadParams,
+        serialization: thread_id(params.thread_id),
+        response: v2::ThreadCopilotUsageReadResponse,
+    },
     ThreadGoalGet => "thread/goal/get" {
         params: v2::ThreadGoalGetParams,
         serialization: thread_id(params.thread_id),

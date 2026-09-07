@@ -1254,6 +1254,11 @@ impl MessageProcessor {
                     .thread_goal_set(request_id.clone(), params)
                     .await
             }
+            ClientRequest::ThreadCopilotUsageRead { params, .. } => {
+                self.thread_processor
+                    .thread_copilot_usage_read(params)
+                    .await
+            }
             ClientRequest::ThreadGoalGet { params, .. } => {
                 self.thread_goal_processor.thread_goal_get(params).await
             }

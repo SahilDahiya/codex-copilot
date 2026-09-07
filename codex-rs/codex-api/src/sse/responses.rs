@@ -482,10 +482,27 @@ pub fn process_responses_event(
         }
         "response.completed" => {
             if let Some(resp_val) = event.response {
-                let metadata = resp_val
+                let mut metadata = resp_val
                     .get("usage")
                     .filter(|usage| !usage.is_null())
                     .cloned();
+                if let Some(charge) = resp_val
+                    .pointer("/copilot_usage/total_nano_aiu")
+                    .and_then(Value::as_i64)
+                    .filter(|charge| *charge >= 0)
+                {
+                    let usage = metadata.get_or_insert_with(|| serde_json::json!({}));
+                    if let Some(usage) = usage.as_object_mut() {
+                        usage.insert("copilot_total_nano_aiu".to_string(), charge.into());
+                        if let Some(model) = resp_val
+                            .get("model")
+                            .and_then(Value::as_str)
+                            .filter(|model| model.len() <= 256)
+                        {
+                            usage.insert("copilot_model".to_string(), model.into());
+                        }
+                    }
+                }
                 match serde_json::from_value::<ResponseCompleted>(resp_val) {
                     Ok(mut resp) => {
                         if let Some(metadata) = metadata {
@@ -2063,3 +2080,7 @@ mod tests {
 
     const CYBER_RESTRICTED_MODEL_FOR_TESTS: &str = "gpt-5.3-codex";
 }
+
+#[cfg(test)]
+#[path = "copilot_usage_tests.rs"]
+mod copilot_usage_tests;

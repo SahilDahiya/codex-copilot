@@ -4130,6 +4130,17 @@
       ],
       "type": "object"
     },
+    "ThreadCopilotUsageReadParams": {
+      "properties": {
+        "threadId": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "threadId"
+      ],
+      "type": "object"
+    },
     "ThreadDeleteParams": {
       "properties": {
         "threadId": {
@@ -5981,6 +5992,30 @@
         "params"
       ],
       "title": "Thread/goal/setRequest",
+      "type": "object"
+    },
+    {
+      "properties": {
+        "id": {
+          "$ref": "#/definitions/RequestId"
+        },
+        "method": {
+          "enum": [
+            "thread/copilotUsage/read"
+          ],
+          "title": "Thread/copilotUsage/readRequestMethod",
+          "type": "string"
+        },
+        "params": {
+          "$ref": "#/definitions/ThreadCopilotUsageReadParams"
+        }
+      },
+      "required": [
+        "id",
+        "method",
+        "params"
+      ],
+      "title": "Thread/copilotUsage/readRequest",
       "type": "object"
     },
     {

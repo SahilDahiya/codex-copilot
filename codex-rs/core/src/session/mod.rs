@@ -2093,6 +2093,19 @@ impl Session {
 
     /// Persist the event to rollout and send it to clients.
     pub(crate) async fn send_event(&self, turn_context: &TurnContext, msg: EventMsg) {
+        if turn_context.config.model_provider.name == "GitHub Copilot"
+            && let Some(db) = self.state_db()
+            && let Err(error) = db
+                .record_copilot_usage(
+                    self.thread_id,
+                    &turn_context.sub_id,
+                    &turn_context.model_info().slug,
+                    &msg,
+                )
+                .await
+        {
+            tracing::warn!("Could not persist Copilot usage: {error}");
+        }
         let legacy_source = msg.clone();
         if let EventMsg::Error(error) = &legacy_source
             && error

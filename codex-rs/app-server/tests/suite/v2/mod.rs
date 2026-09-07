@@ -135,3 +135,5 @@ mod windows_sandbox_setup;
 
 mod user_verification;
 mod user_verification_mcp;
+
+mod copilot_usage;

@@ -1,4 +1,6 @@
+mod copilot_usage;
 mod shared;
+pub use copilot_usage::*;
 
 mod account;
 mod application;

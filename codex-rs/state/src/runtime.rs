@@ -39,6 +39,9 @@ use std::sync::atomic::AtomicI64;
 use std::time::Instant;
 use tracing::warn;
 
+mod copilot_usage;
+pub use copilot_usage::CopilotUsage;
+
 mod backfill;
 mod external_agent_config_imports;
 mod goals;

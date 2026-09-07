@@ -1,0 +1,28 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "description": "Backend-reported usage recorded since tracking was enabled, including spawned agents. One AI credit is 1,000,000,000 nano AIU. Usage is not an invoice or an amount owed.",
+  "properties": {
+    "nanoAiu": {
+      "format": "int64",
+      "type": "integer"
+    },
+    "partial": {
+      "type": "boolean"
+    },
+    "pending": {
+      "type": "boolean"
+    },
+    "responses": {
+      "format": "int64",
+      "type": "integer"
+    }
+  },
+  "required": [
+    "nanoAiu",
+    "partial",
+    "pending",
+    "responses"
+  ],
+  "title": "ThreadCopilotUsageReadResponse",
+  "type": "object"
+}
