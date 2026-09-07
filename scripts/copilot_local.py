@@ -285,15 +285,18 @@ def locked_launch_args(home, args):
 
 def install(home):
     root = Path(__file__).resolve().parents[1]
-    source = root / "codex-rs" / "target" / "dev-small" / "codex"
-    if not source.is_file():
+    build_dir = root / "codex-rs" / "target" / "dev-small"
+    binaries = ["codex", "codex-code-mode-host"]
+    missing = [name for name in binaries if not (build_dir / name).is_file()]
+    if missing:
         raise RuntimeError(
-            "Build first: cd codex-rs && cargo build --profile dev-small -p codex-cli --bin codex"
+            "Build the dev-small binaries before installing: " + ", ".join(missing)
         )
     (home / "bin").mkdir(parents=True, exist_ok=True, mode=0o700)
-    staged = home / "bin" / "codex.new"
-    shutil.copy2(source, staged)
-    os.replace(staged, home / "bin" / "codex")
+    for name in binaries:
+        staged = home / "bin" / (name + ".new")
+        shutil.copy2(build_dir / name, staged)
+        os.replace(staged, home / "bin" / name)
     helper = home / "copilot_local.py"
     save_private(helper, Path(__file__).read_text())
     shutil.copy2(

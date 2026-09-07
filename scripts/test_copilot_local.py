@@ -10,6 +10,54 @@ import copilot_local as copilot
 
 
 class CopilotLocalTests(unittest.TestCase):
+    def test_install_includes_code_mode_host(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            helper = root / "scripts" / "copilot_local.py"
+            helper.parent.mkdir()
+            helper.write_text("# helper\n")
+            build = root / "codex-rs" / "target" / "dev-small"
+            build.mkdir(parents=True)
+            binaries = {"codex": b"main", "codex-code-mode-host": b"host"}
+            for name, contents in binaries.items():
+                (build / name).write_bytes(contents)
+                (build / name).chmod(0o755)
+            catalog = root / "codex-rs" / "models-manager" / "models.json"
+            catalog.parent.mkdir()
+            catalog.write_text('{"models": []}')
+            home = root / "installation"
+            with (
+                patch.object(copilot, "__file__", str(helper)),
+                patch.object(Path, "home", return_value=root),
+                contextlib.redirect_stdout(io.StringIO()),
+            ):
+                copilot.install(home)
+            self.assertEqual(
+                {path.name: path.read_bytes() for path in (home / "bin").iterdir()},
+                binaries,
+            )
+            self.assertTrue(
+                (home / "bin" / "codex-code-mode-host").stat().st_mode & 0o100
+            )
+
+    def test_install_missing_host_preserves_existing_installation(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            build = root / "codex-rs" / "target" / "dev-small"
+            build.mkdir(parents=True)
+            (build / "codex").write_bytes(b"new")
+            home = root / "installation"
+            (home / "bin").mkdir(parents=True)
+            (home / "bin" / "codex").write_bytes(b"existing")
+            with (
+                patch.object(
+                    copilot, "__file__", str(root / "scripts" / "copilot_local.py")
+                ),
+                self.assertRaisesRegex(RuntimeError, "codex-code-mode-host"),
+            ):
+                copilot.install(home)
+            self.assertEqual((home / "bin" / "codex").read_bytes(), b"existing")
+
     def test_login_handles_pending_and_slow_down_before_saving_credentials(self):
         responses = [
             {
