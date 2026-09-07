@@ -202,6 +202,87 @@ refresh_interval_ms = 300000
     print(f"Configured {model}. Previous config, if any, saved as config.toml.backup.")
 
 
+def copilot_route(home):
+    """Build the only inference provider permitted by this launcher."""
+    base_url = load_auth(home)["api_base_url"]
+    url = urllib.parse.urlsplit(base_url)
+    host = url.hostname or ""
+    if not (
+        url.scheme == "https"
+        and url.netloc == host
+        and (host == "api.githubcopilot.com" or host.endswith(".githubcopilot.com"))
+        and url.path in ("", "/")
+        and not url.query
+        and not url.fragment
+    ):
+        raise RuntimeError("Refusing a non-Copilot inference endpoint; sign in again")
+    return {
+        "name": "GitHub Copilot",
+        "base_url": base_url,
+        "wire_api": "responses",
+        "requires_openai_auth": False,
+        "supports_websockets": False,
+        "http_headers": HEADERS,
+        "auth": {
+            "command": sys.executable,
+            "args": [str(Path(__file__).resolve()), "token"],
+            "cwd": str(home),
+            "timeout_ms": 45000,
+            "refresh_interval_ms": 300000,
+        },
+    }
+
+
+def toml_value(value):
+    if isinstance(value, dict):
+        return (
+            "{ "
+            + ", ".join(
+                f"{json.dumps(key)} = {toml_value(item)}" for key, item in value.items()
+            )
+            + " }"
+        )
+    return json.dumps(value)
+
+
+def locked_launch_args(home, args):
+    """Pin the provider above config/profile settings and reject CLI route changes."""
+    if args in (["--help"], ["--version"]):
+        return args
+    pending_config = False
+    for arg in args:
+        if arg == "--" and not pending_config:
+            break
+        override = None
+        if pending_config:
+            override = arg
+            pending_config = False
+        elif arg in ("-c", "--config"):
+            pending_config = True
+        elif arg.startswith("--config="):
+            override = arg.removeprefix("--config=")
+        elif arg.startswith("-c"):
+            override = arg[2:].lstrip("=")
+        elif arg.split("=", 1)[0] in ("--oss", "--local-provider", "--remote"):
+            raise RuntimeError(
+                "codex-copilot only supports local sessions using GitHub Copilot"
+            )
+        if override is not None:
+            key = override.split("=", 1)[0].replace('"', "").replace("'", "").strip()
+            if "\\" in key or key.split(".", 1)[0].strip() in (
+                "model_provider",
+                "model_providers",
+            ):
+                raise RuntimeError("The model provider is locked to GitHub Copilot")
+    return [
+        "-c",
+        'model_provider="github_copilot"',
+        "-c",
+        "model_providers.github_copilot=" + toml_value(copilot_route(home)),
+        *args,
+    ]
+
+
 def install(home):
     root = Path(__file__).resolve().parents[1]
     source = root / "codex-rs" / "target" / "dev-small" / "codex"
@@ -261,6 +342,11 @@ def main():
                 "Copilot endpoint changed; run login and configure again"
             )
         print(token)
+    elif args == ["status"]:
+        route = copilot_route(home)
+        print("Inference provider: GitHub Copilot (locked)")
+        print("Inference endpoint: " + route["base_url"])
+        print("Authentication: GitHub token exchange; no OpenAI subscription fallback")
     elif args == ["models"]:
         print("\n".join(available_models(home)))
     elif len(args) == 2 and args[0] == "configure":
@@ -280,7 +366,7 @@ def main():
                 "Run login, models, then configure MODEL before starting Codex"
             )
         env = dict(os.environ, CODEX_HOME=str(home))
-        os.execve(str(binary), [str(binary), *args], env)
+        os.execve(str(binary), [str(binary), *locked_launch_args(home, args)], env)
 
 
 if __name__ == "__main__":

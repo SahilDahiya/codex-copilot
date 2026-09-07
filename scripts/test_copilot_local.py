@@ -86,6 +86,63 @@ class CopilotLocalTests(unittest.TestCase):
                 copilot.available_models(Path("unused")), ["responses-model"]
             )
 
+    def test_launcher_pins_copilot_and_preserves_model_selection(self):
+        with patch.object(
+            copilot,
+            "load_auth",
+            return_value={"api_base_url": "https://api.business.githubcopilot.com"},
+        ):
+            args = copilot.locked_launch_args(
+                Path("private-home"), ["-m", "gpt-6-astra"]
+            )
+        self.assertEqual(args[:3], ["-c", 'model_provider="github_copilot"', "-c"])
+        self.assertEqual(args[-2:], ["-m", "gpt-6-astra"])
+        self.assertIn('"base_url" = "https://api.business.githubcopilot.com"', args[3])
+        self.assertIn('"requires_openai_auth" = false', args[3])
+        self.assertIn('"token"', args[3])
+        self.assertNotIn("github_access_token", args[3])
+
+    def test_launcher_rejects_provider_switches_before_loading_credentials(self):
+        for args in [
+            ["--oss"],
+            ["--local-provider=ollama"],
+            ["--remote", "ws://localhost:1234"],
+            ["-c", 'model_provider="openai"'],
+            ["--config=model_provider='openai'"],
+            ["-c", r'"model_provi\u0064er"="openai"'],
+            ["-cmodel_providers.github_copilot.base_url='https://api.openai.com'"],
+            ["--config", '"model_providers".github_copilot.auth.command="other"'],
+        ]:
+            with self.subTest(args=args), patch.object(copilot, "load_auth") as auth:
+                with self.assertRaises(RuntimeError):
+                    copilot.locked_launch_args(Path("unused"), args)
+                auth.assert_not_called()
+
+    def test_launcher_does_not_parse_prompt_as_configuration(self):
+        with patch.object(
+            copilot,
+            "load_auth",
+            return_value={"api_base_url": "https://api.githubcopilot.com"},
+        ):
+            args = ["exec", "--", "--oss", "-c", "model_provider=openai"]
+            self.assertEqual(copilot.locked_launch_args(Path("home"), args)[4:], args)
+
+    def test_launcher_rejects_unexpected_saved_endpoints(self):
+        for url in [
+            "https://api.openai.com/v1",
+            "http://api.githubcopilot.com",
+            "https://api.githubcopilot.com.evil.test",
+            "https://user@api.githubcopilot.com",
+            "https://api.githubcopilot.com/proxy",
+            "https://api.githubcopilot.com?redirect=evil",
+        ]:
+            with (
+                self.subTest(url=url),
+                patch.object(copilot, "load_auth", return_value={"api_base_url": url}),
+            ):
+                with self.assertRaises(RuntimeError):
+                    copilot.copilot_route(Path("unused"))
+
     def test_private_write_replaces_file_and_restricts_permissions(self):
         with tempfile.TemporaryDirectory() as directory:
             path = Path(directory) / "auth.json"
