@@ -155,10 +155,16 @@ impl<T: HttpTransport> ResponsesClient<T> {
     async fn stream_encoded(
         &self,
         body: EncodedJsonBody,
-        extra_headers: HeaderMap,
+        mut extra_headers: HeaderMap,
         compression: Compression,
         turn_state: Option<Arc<OnceLock<String>>>,
     ) -> Result<ResponseStream, ApiError> {
+        let body = if self.session.provider().name == "GitHub Copilot" {
+            crate::requests::github_copilot::prepare(body, &mut extra_headers)
+                .map_err(|err| ApiError::Stream(format!("invalid Copilot request: {err}")))?
+        } else {
+            body
+        };
         let request_compression = match compression {
             Compression::None => RequestCompression::None,
             Compression::Zstd => RequestCompression::Zstd,

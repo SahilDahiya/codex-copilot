@@ -153,6 +153,72 @@ fn provider(name: &str) -> Provider {
     }
 }
 
+#[tokio::test]
+async fn copilot_preserves_tool_history_and_marks_request_initiator() -> Result<()> {
+    for (input, subagent, initiator, vision) in [
+        (
+            serde_json::json!([{"type": "message", "role": "user", "content": [
+                {"type": "input_text", "text": "inspect this"},
+                {"type": "input_image", "image_url": "data:image/png;base64,AA=="}
+            ]}]),
+            false,
+            "user",
+            true,
+        ),
+        (
+            serde_json::json!([
+                {"type": "function_call", "call_id": "call-1", "name": "shell", "arguments": "{}"},
+                {"type": "function_call_output", "call_id": "call-1", "output": "done"}
+            ]),
+            false,
+            "agent",
+            false,
+        ),
+        (
+            serde_json::json!([{"type": "message", "role": "user", "content": "subtask"}]),
+            true,
+            "agent",
+            false,
+        ),
+    ] {
+        let state = RecordingState::default();
+        let client = ResponsesClient::new(
+            RecordingTransport::new(state.clone()),
+            provider("GitHub Copilot"),
+            Arc::new(NoAuth),
+        );
+        let mut headers = HeaderMap::new();
+        if subagent {
+            headers.insert("x-openai-subagent", HeaderValue::from_static("review"));
+        }
+        let expected = serde_json::json!({
+            "model": "test-model", "input": input, "stream": true,
+            "tools": [{"type": "function", "name": "shell", "parameters": {"type": "object"}}]
+        });
+        let mut body = expected.clone();
+        body["service_tier"] = serde_json::json!("priority");
+        let _stream = client
+            .stream(body, headers, Compression::None, /*turn_state*/ None)
+            .await?;
+        let requests = state.take_stream_requests();
+        assert_eq!(requests.len(), 1);
+        let request = &requests[0];
+        assert_eq!(
+            serde_json::from_slice::<serde_json::Value>(request_body_bytes(request))?,
+            expected
+        );
+        assert_eq!(
+            (
+                request.headers["x-initiator"].to_str()?,
+                request.headers["openai-intent"].to_str()?,
+                request.headers.contains_key("copilot-vision-request"),
+            ),
+            (initiator, "conversation-edits", vision)
+        );
+    }
+    Ok(())
+}
+
 #[derive(Debug, Default)]
 struct FlakyTransportState {
     attempts: i64,
