@@ -440,6 +440,7 @@ mod status_controls;
 mod status_surfaces;
 mod streaming;
 use self::status_surfaces::CachedProjectRootName;
+mod copilot_usage;
 mod thread_title_status;
 mod thread_usage;
 pub(crate) use self::thread_usage::ThreadUsageOutcome;
@@ -805,6 +806,7 @@ pub(crate) struct ChatWidget {
     status_line_workspace_messages_disabled: bool,
     // Cached backend-estimated cost and bounded refresh state for the current thread.
     thread_usage: thread_usage::ThreadUsageState,
+    copilot_usage: copilot_usage::CopilotUsageState,
     // Current thread-goal status shown in the status line when plan mode is inactive.
     current_goal_status_indicator: Option<GoalStatusIndicator>,
     current_goal_status: Option<GoalStatusState>,
@@ -1208,6 +1210,7 @@ impl ChatWidget {
         }
         self.refresh_status_line_if_workspace_headline_due();
         self.refresh_thread_usage_if_settlement_due();
+        self.refresh_copilot_usage();
     }
 
     fn flush_active_cell(&mut self) {

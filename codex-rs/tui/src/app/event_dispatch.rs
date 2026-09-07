@@ -1339,6 +1339,12 @@ impl App {
             AppEvent::RefreshTokenActivity { request_id } => {
                 self.refresh_token_activity(app_server, request_id);
             }
+            AppEvent::RefreshCopilotUsage { thread_id } => {
+                self.refresh_copilot_usage(app_server, thread_id);
+            }
+            AppEvent::CopilotUsageLoaded { thread_id, result } => {
+                self.chat_widget.finish_copilot_usage(thread_id, result);
+            }
             AppEvent::RefreshThreadUsage {
                 thread_id,
                 request_id,

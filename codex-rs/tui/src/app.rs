@@ -217,6 +217,7 @@ mod backend_banner_fallback;
 mod background_requests;
 mod config_persistence;
 mod connector_mentions;
+mod copilot_usage;
 mod event_dispatch;
 mod exit_summary;
 mod experimental_features;

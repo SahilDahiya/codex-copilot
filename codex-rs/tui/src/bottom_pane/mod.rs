@@ -65,6 +65,8 @@ mod app_link_view;
 mod apply_patch_header;
 mod approval_overlay;
 mod async_questions;
+mod copilot_usage;
+pub(crate) use copilot_usage::CopilotUsageDisplay;
 mod hook_status;
 mod mcp_server_elicitation;
 mod multi_select_picker;
@@ -240,6 +242,7 @@ struct DelayedApprovalRequest {
 /// (`BottomPaneView`). It performs local input routing and renders time-based hints, while leaving
 /// process-level decisions (quit, interrupt, shutdown) to `ChatWidget`.
 pub(crate) struct BottomPane {
+    copilot_usage: Option<CopilotUsageDisplay>,
     /// Composer is retained even when a BottomPaneView is displayed so the
     /// input state is retained when the view is closed.
     composer: ChatComposer,
@@ -326,6 +329,7 @@ impl BottomPane {
         composer.set_keymap_bindings(&keymap);
         composer.set_skill_mentions(skills);
         Self {
+            copilot_usage: None,
             composer,
             view_stack: Vec::new(),
             questions: None,
@@ -1966,7 +1970,7 @@ impl BottomPane {
         self.as_renderable_with_composer_right_reserve(/*composer_right_reserve*/ 0)
     }
 
-    pub(crate) fn as_renderable_with_composer_right_reserve(
+    fn body_with_composer_right_reserve(
         &'_ self,
         composer_right_reserve: u16,
     ) -> RenderableItem<'_> {
@@ -2157,7 +2161,6 @@ impl Renderable for BottomPane {
     fn cursor_pos(&self, area: Rect) -> Option<(u16, u16)> {
         self.as_renderable().cursor_pos(area)
     }
-
     fn cursor_style(&self, area: Rect) -> crossterm::cursor::SetCursorStyle {
         self.as_renderable().cursor_style(area)
     }

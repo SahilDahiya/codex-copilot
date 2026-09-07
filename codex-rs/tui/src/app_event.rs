@@ -660,6 +660,13 @@ pub(crate) enum AppEvent {
     },
 
     /// Fetch backend-estimated usage for the currently visible enterprise thread.
+    RefreshCopilotUsage {
+        thread_id: ThreadId,
+    },
+    CopilotUsageLoaded {
+        thread_id: ThreadId,
+        result: Result<codex_app_server_protocol::ThreadCopilotUsageReadResponse, String>,
+    },
     RefreshThreadUsage {
         thread_id: ThreadId,
         request_id: u64,
