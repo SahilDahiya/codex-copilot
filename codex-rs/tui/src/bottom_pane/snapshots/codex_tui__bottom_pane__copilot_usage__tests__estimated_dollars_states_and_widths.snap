@@ -1,0 +1,17 @@
+---
+source: tui/src/bottom_pane/copilot_usage_tests.rs
+assertion_line: 21
+expression: output
+---
+80 false false: |                                                            Copilot Est. $0.0163|
+32 false false: |            Copilot Est. $0.0163|
+24 false false: |    Copilot Est. $0.0163|
+80 false true: |                                                    Copilot Est. $0.0163 pending|
+32 false true: |    Copilot Est. $0.0163 pending|
+24 false true: |    Est. $0.0163 pending|
+80 true false: |                                                    Copilot Est. $0.0163 partial|
+32 true false: |    Copilot Est. $0.0163 partial|
+24 true false: |    Est. $0.0163 partial|
+80 true true: |                                          Copilot Est. $0.0163 partial · pending|
+32 true true: |  Est. $0.0163 partial · pending|
+24 true true: |            Est. $0.0163|

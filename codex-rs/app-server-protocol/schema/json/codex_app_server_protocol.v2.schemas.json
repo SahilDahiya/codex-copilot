@@ -18331,11 +18331,20 @@
       "$schema": "http://json-schema.org/draft-07/schema#",
       "description": "Backend-reported usage recorded since tracking was enabled, including spawned agents. One AI credit is 1,000,000,000 nano AIU. Usage is not an invoice or an amount owed.",
       "properties": {
+        "estimatedNanoUsd": {
+          "description": "API-equivalent USD in billionths, only for responses without a backend charge. Null means no estimates are available. Add to the USD value of nano_aiu.",
+          "format": "int64",
+          "type": [
+            "integer",
+            "null"
+          ]
+        },
         "nanoAiu": {
           "format": "int64",
           "type": "integer"
         },
         "partial": {
+          "description": "Some attempts have neither a backend charge nor a usable token estimate.",
           "type": "boolean"
         },
         "pending": {

@@ -17,7 +17,11 @@ pub struct ThreadCopilotUsageReadParams {
 #[ts(export_to = "v2/")]
 pub struct ThreadCopilotUsageReadResponse {
     pub nano_aiu: i64,
+    /// API-equivalent USD in billionths, only for responses without a backend charge.
+    /// Null means no estimates are available. Add to the USD value of nano_aiu.
+    pub estimated_nano_usd: Option<i64>,
     pub responses: i64,
+    /// Some attempts have neither a backend charge nor a usable token estimate.
     pub partial: bool,
     pub pending: bool,
 }

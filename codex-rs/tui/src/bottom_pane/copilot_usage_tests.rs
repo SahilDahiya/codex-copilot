@@ -1,12 +1,40 @@
 use super::*;
 
 #[test]
+fn estimated_dollars_states_and_widths() {
+    let mut output = String::new();
+    for (partial, pending) in [(false, false), (false, true), (true, false), (true, true)] {
+        for width in [80, 32, 24] {
+            let usage = CopilotUsageDisplay::Available(ThreadCopilotUsageReadResponse {
+                nano_aiu: 100_000_000,
+                estimated_nano_usd: Some(15_320_000),
+                responses: 3,
+                partial,
+                pending,
+            });
+            let mut buffer = Buffer::empty(Rect::new(
+                /*x*/ 0, /*y*/ 0, width, /*height*/ 1,
+            ));
+            badge(&usage, width).render(buffer.area, &mut buffer);
+            let row: String = buffer
+                .content
+                .iter()
+                .map(ratatui::buffer::Cell::symbol)
+                .collect();
+            output.push_str(&format!("{width} {partial} {pending}: |{row}|\n"));
+        }
+    }
+    insta::assert_snapshot!(output);
+}
+
+#[test]
 fn persistent_usage_badge_states_and_widths() {
     let mut output = String::new();
     for (partial, pending) in [(false, false), (false, true), (true, false), (true, true)] {
         for width in [80, 32] {
             let usage = CopilotUsageDisplay::Available(ThreadCopilotUsageReadResponse {
                 nano_aiu: 29_500_000,
+                estimated_nano_usd: None,
                 responses: 1,
                 partial,
                 pending,
@@ -29,6 +57,7 @@ fn persistent_usage_badge_states_and_widths() {
         &badge(
             &CopilotUsageDisplay::Available(ThreadCopilotUsageReadResponse {
                 nano_aiu: 0,
+                estimated_nano_usd: None,
                 responses: 1,
                 partial: true,
                 pending: false,
@@ -58,6 +87,7 @@ fn usage_row_preserves_composer_and_cursor_while_idle_and_working() {
         pane.set_copilot_usage(Some(CopilotUsageDisplay::Available(
             ThreadCopilotUsageReadResponse {
                 nano_aiu: 29_500_000,
+                estimated_nano_usd: None,
                 responses: 1,
                 partial: false,
                 pending: running,

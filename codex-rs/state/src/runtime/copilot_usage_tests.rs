@@ -4,6 +4,82 @@ use codex_protocol::protocol::RawResponseCompletedEvent;
 use codex_utils_absolute_path::test_support::PathExt;
 use pretty_assertions::assert_eq;
 
+#[tokio::test]
+async fn estimates_survive_resume_deduplicate_and_yield_to_reported_charges() {
+    let home = unique_temp_dir();
+    let config = crate::SqliteConfig::new_for_testing(home.as_path().abs());
+    let db = StateRuntime::init(config.clone(), "github_copilot".into())
+        .await
+        .unwrap();
+    let root = ThreadId::new();
+    let child = ThreadId::new();
+    db.upsert_thread_spawn_edge(root, child, crate::DirectionalThreadSpawnEdgeStatus::Open)
+        .await
+        .unwrap();
+    for (thread, id, model) in [
+        (root, "root", "gpt-6-astra"),
+        (child, "child", "gpt-5.6-luna"),
+    ] {
+        let mut event = response(id, None);
+        if let EventMsg::RawResponseCompleted(ref mut response) = event {
+            response.token_usage = Some(codex_protocol::protocol::TokenUsage {
+                input_tokens: 1_000,
+                output_tokens: 100,
+                ..Default::default()
+            });
+            response.usage_metadata.as_mut().unwrap().metadata =
+                Some(serde_json::json!({"copilot_model": model}));
+        }
+        for _ in 0..2 {
+            db.record_copilot_usage(thread, "turn", "different-selected-model", &event)
+                .await
+                .unwrap();
+        }
+    }
+    drop(db);
+    let db = StateRuntime::init(config, "github_copilot".into())
+        .await
+        .unwrap();
+    assert_eq!(
+        db.copilot_usage(root).await.unwrap(),
+        CopilotUsage {
+            estimated_nano_usd: Some(15_320_000),
+            responses: 2,
+            ..Default::default()
+        }
+    );
+    db.record_copilot_usage(
+        root,
+        "turn",
+        "gpt-6-astra",
+        &response("root", Some(100_000_000)),
+    )
+    .await
+    .unwrap();
+    assert_eq!(
+        db.copilot_usage(root).await.unwrap(),
+        CopilotUsage {
+            nano_aiu: 100_000_000,
+            estimated_nano_usd: Some(320_000),
+            responses: 2,
+            ..Default::default()
+        }
+    );
+    db.record_copilot_usage(child, "turn", "unknown", &response("unknown", None))
+        .await
+        .unwrap();
+    assert_eq!(
+        db.copilot_usage(root).await.unwrap(),
+        CopilotUsage {
+            nano_aiu: 100_000_000,
+            estimated_nano_usd: Some(320_000),
+            responses: 3,
+            partial: true,
+            ..Default::default()
+        }
+    );
+}
+
 fn response(id: &str, charge: Option<i64>) -> EventMsg {
     EventMsg::RawResponseCompleted(RawResponseCompletedEvent {
         response_id: id.into(),
@@ -42,6 +118,7 @@ async fn ledger_deduplicates_and_includes_children_but_not_other_threads_or_fork
         db.copilot_usage(root).await.unwrap(),
         CopilotUsage {
             nano_aiu: 29_500_000,
+            estimated_nano_usd: None,
             responses: 2,
             partial: true,
             pending: false,
@@ -58,6 +135,7 @@ async fn ledger_deduplicates_and_includes_children_but_not_other_threads_or_fork
         db.copilot_usage(root).await.unwrap(),
         CopilotUsage {
             nano_aiu: 29_500_001,
+            estimated_nano_usd: None,
             responses: 2,
             partial: false,
             pending: false,

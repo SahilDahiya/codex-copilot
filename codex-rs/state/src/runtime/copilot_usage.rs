@@ -1,4 +1,4 @@
-//! Exact Copilot charges, kept separately from rollouts and model-visible history.
+//! Copilot charges and API-equivalent estimates, separate from model-visible history.
 use super::StateRuntime;
 use codex_protocol::ThreadId;
 use codex_protocol::protocol::EventMsg;
@@ -8,6 +8,7 @@ use std::sync::OnceLock;
 #[derive(Debug, Default, PartialEq, Eq)]
 pub struct CopilotUsage {
     pub nano_aiu: i64,
+    pub estimated_nano_usd: Option<i64>,
     pub responses: i64,
     pub partial: bool,
     pub pending: bool,
@@ -50,15 +51,24 @@ impl StateRuntime {
                 );
                 sqlx::query(
                     "INSERT INTO copilot_usage_responses
-                    (response_id, thread_id, turn_id, model, nano_aiu) VALUES (?, ?, ?, ?, ?)
+                    (response_id, thread_id, turn_id, model, nano_aiu, estimated_nano_usd)
+                    VALUES (?, ?, ?, ?, ?, ?)
                     ON CONFLICT(response_id) DO UPDATE SET
-                    nano_aiu = COALESCE(copilot_usage_responses.nano_aiu, excluded.nano_aiu)",
+                    nano_aiu = COALESCE(copilot_usage_responses.nano_aiu, excluded.nano_aiu),
+                    estimated_nano_usd = COALESCE(copilot_usage_responses.estimated_nano_usd,
+                        excluded.estimated_nano_usd)",
                 )
                 .bind(&response.response_id)
                 .bind(thread_id.to_string())
                 .bind(turn_id)
                 .bind(model)
                 .bind(charge)
+                .bind(
+                    response
+                        .token_usage
+                        .as_ref()
+                        .and_then(|usage| super::copilot_pricing::estimate_nano_usd(model, usage)),
+                )
                 .execute(self.pool.as_ref())
                 .await?;
                 return Ok(());
@@ -88,22 +98,31 @@ impl StateRuntime {
     /// Include spawned descendants, but never a fork's copied history.
     /// Unfinished turns from a previous process are incomplete, rather than still pending.
     pub async fn copilot_usage(&self, thread_id: ThreadId) -> anyhow::Result<CopilotUsage> {
-        let row = sqlx::query("WITH RECURSIVE scope(id) AS (
+        let row = sqlx::query(
+            "WITH RECURSIVE scope(id) AS (
                 SELECT ? UNION SELECT child_thread_id FROM thread_spawn_edges
                 JOIN scope ON parent_thread_id = scope.id
             ) SELECT
             (SELECT COALESCE(SUM(nano_aiu), 0) FROM copilot_usage_responses
                 WHERE thread_id IN scope) AS total,
             (SELECT COUNT(*) FROM copilot_usage_responses WHERE thread_id IN scope) AS responses,
-            (EXISTS(SELECT 1 FROM copilot_usage_responses WHERE thread_id IN scope AND nano_aiu IS NULL)
+            (SELECT SUM(estimated_nano_usd) FROM copilot_usage_responses
+                WHERE thread_id IN scope AND nano_aiu IS NULL) AS estimated,
+            (EXISTS(SELECT 1 FROM copilot_usage_responses WHERE thread_id IN scope
+                AND nano_aiu IS NULL AND estimated_nano_usd IS NULL)
                 OR EXISTS(SELECT 1 FROM copilot_usage_turns WHERE thread_id IN scope
                     AND (incomplete = 1 OR (status = 'pending' AND owner != ?)))) AS partial,
             EXISTS(SELECT 1 FROM copilot_usage_turns WHERE thread_id IN scope
-                AND status = 'pending' AND owner = ?) AS pending")
-            .bind(thread_id.to_string()).bind(owner()).bind(owner())
-            .fetch_one(self.pool.as_ref()).await?;
+                AND status = 'pending' AND owner = ?) AS pending",
+        )
+        .bind(thread_id.to_string())
+        .bind(owner())
+        .bind(owner())
+        .fetch_one(self.pool.as_ref())
+        .await?;
         Ok(CopilotUsage {
             nano_aiu: row.try_get("total")?,
+            estimated_nano_usd: row.try_get("estimated")?,
             responses: row.try_get("responses")?,
             partial: row.try_get("partial")?,
             pending: row.try_get("pending")?,

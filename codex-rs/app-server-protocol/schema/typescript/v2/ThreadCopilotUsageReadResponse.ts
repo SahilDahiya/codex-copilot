@@ -6,4 +6,13 @@
  * Backend-reported usage recorded since tracking was enabled, including spawned agents.
  * One AI credit is 1,000,000,000 nano AIU. Usage is not an invoice or an amount owed.
  */
-export type ThreadCopilotUsageReadResponse = { nanoAiu: bigint, responses: bigint, partial: boolean, pending: boolean, };
+export type ThreadCopilotUsageReadResponse = { nanoAiu: bigint,
+/**
+ * API-equivalent USD in billionths, only for responses without a backend charge.
+ * Null means no estimates are available. Add to the USD value of nano_aiu.
+ */
+estimatedNanoUsd: bigint | null, responses: bigint,
+/**
+ * Some attempts have neither a backend charge nor a usable token estimate.
+ */
+partial: boolean, pending: boolean, };

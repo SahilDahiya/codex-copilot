@@ -20,6 +20,7 @@ impl ThreadRequestProcessor {
         Ok(Some(
             ThreadCopilotUsageReadResponse {
                 nano_aiu: usage.nano_aiu,
+                estimated_nano_usd: usage.estimated_nano_usd,
                 responses: usage.responses,
                 partial: usage.partial,
                 pending: usage.pending,

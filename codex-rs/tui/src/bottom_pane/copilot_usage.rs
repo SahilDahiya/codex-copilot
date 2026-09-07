@@ -52,7 +52,9 @@ impl Renderable for CopilotBadge<'_> {
 
 fn badge(usage: &CopilotUsageDisplay, width: u16) -> Line<'static> {
     let text = match usage {
-        CopilotUsageDisplay::Available(usage) if usage.partial && usage.nano_aiu == 0 => {
+        CopilotUsageDisplay::Available(usage)
+            if usage.partial && usage.nano_aiu == 0 && usage.estimated_nano_usd.is_none() =>
+        {
             if usage.pending {
                 "Copilot cost unavailable · pending".to_string()
             } else {
@@ -60,23 +62,32 @@ fn badge(usage: &CopilotUsageDisplay, width: u16) -> Line<'static> {
             }
         }
         CopilotUsageDisplay::Available(usage) => {
-            // Integer rounding preserves tiny charges without floating-point accumulation.
-            let nano = i128::from(usage.nano_aiu.max(0));
-            let credits = (nano + 50_000) / 100_000;
-            let dollars = (nano + 50_000) / 100_000;
+            // One Copilot AI credit is $0.01; estimates are already nano USD.
+            let nano_usd = i128::from(usage.nano_aiu.max(0)) / 100
+                + i128::from(usage.estimated_nano_usd.unwrap_or(0).max(0));
+            let dollars = (nano_usd + 50_000) / 100_000;
+            let prefix = if usage.estimated_nano_usd.is_some() {
+                "Est. "
+            } else {
+                ""
+            };
             let state = match (usage.partial, usage.pending) {
                 (true, true) => " partial · pending",
                 (true, false) => " partial",
                 (false, true) => " pending",
                 (false, false) => "",
             };
-            let cr = format!("{}.{:04}", credits / 10_000, credits % 10_000);
-            let usd = format!("{}.{:06}", dollars / 1_000_000, dollars % 1_000_000);
-            let full = format!("Copilot tracked: {cr} cr · ${usd}{state}");
+            let usd = format!("{}.{:04}", dollars / 10_000, dollars % 10_000);
+            let full = format!("Copilot {prefix}${usd}{state}");
             if full.chars().count() <= usize::from(width) {
                 full
             } else {
-                format!("{cr} cr{state}")
+                let compact = format!("{prefix}${usd}{state}");
+                if compact.chars().count() <= usize::from(width) {
+                    compact
+                } else {
+                    format!("{prefix}${usd}")
+                }
             }
         }
         CopilotUsageDisplay::Loading => "Copilot usage loading…".to_string(),

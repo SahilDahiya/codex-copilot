@@ -1,6 +1,6 @@
 ---
 source: tui/src/bottom_pane/copilot_usage_tests.rs
-assertion_line: 55
+assertion_line: 104
 expression: output
 ---
 working=false
@@ -8,7 +8,7 @@ working=false
 › Ask Codex to do anything
 
   ? for shortcuts                                            100% context left
-                                          Copilot tracked: 0.0295 cr · $0.000295
+                                                                 Copilot $0.0003
 working=true
 • Working (0s • esc to interrupt)
 
@@ -16,4 +16,4 @@ working=true
 › Ask Codex to do anything
 
   ? for shortcuts                                            100% context left
-                                  Copilot tracked: 0.0295 cr · $0.000295 pending
+                                                         Copilot $0.0003 pending

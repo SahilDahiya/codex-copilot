@@ -40,6 +40,7 @@ async fn copilot_usage_is_durable_and_only_records_copilot_provider() -> Result<
         let expected = if provider == "GitHub Copilot" {
             CopilotUsage {
                 nano_aiu: 29_500_000,
+                estimated_nano_usd: None,
                 responses: 1,
                 partial: false,
                 pending: false,
